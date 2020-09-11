@@ -46,17 +46,17 @@ MAX_GRAD_NORM = 0.5
 # Number of steps to generate actions
 N_STEPS = 100
 # Total number of frames to train on
-N_FRAMES = 10e6
+N_FRAMES = 1e6
 # Should we use GPU?
 CUDA = True
 # Discounted reward factor
 GAMMA = 0.99
 # Number of environments to run in paralell this is like the batch size
-N_ENVS = 2
+N_ENVS = 8
 # Environment we are going to use. Make sure it is a continuous action space task.
 ENV_NAME = 'OffWorldDockerMonolithDiscreteSim-v0'
-SAVE_INTERVAL = 500
-LOG_INTERVAL = 10
+SAVE_INTERVAL = 100
+LOG_INTERVAL = 1
 MODEL_DIR = 'weights'
 
 # Create our model output path if it does not exist.
@@ -123,7 +123,7 @@ writer = SummaryWriter()
 # Parallelize environments
 envs = [make_env for i in range(N_ENVS)]
 envs = SubprocVecEnv(envs)
-envs = VecNormalize(envs, gamma=GAMMA)
+envs = VecNormalize(envs, gamma=GAMMA, ob=False, ret=False)
 obs_shape = envs.observation_space.shape[1:]
 obs_shape = (obs_shape[-1], obs_shape[0], obs_shape[1])
 # Print observation space so we know what we are dealing with.
@@ -151,7 +151,7 @@ episode_rewards = torch.zeros([N_ENVS, 1])
 final_rewards = torch.zeros([N_ENVS, 1])
 
 n_updates = int(N_FRAMES // N_STEPS // N_ENVS)
-for update_i in tqdm(range(n_updates)):
+for update_i in range(n_updates):
     # Generate samples
     for step in range(N_STEPS):
         # Generate and take an action
@@ -200,9 +200,9 @@ for update_i in tqdm(range(n_updates)):
     writer.add_scalar('data/entropy_loss', entropy_loss, update_i)
     writer.add_scalar('data/overall_loss', overall_loss, update_i)
     writer.add_scalar('data/avg_reward', final_rewards.mean(), update_i)
-
+    
     if update_i % LOG_INTERVAL == 0:
-        print('Reward: %.3f' % (final_rewards.mean()))
+        print('Update number ', update_i,'Reward: %.3f' % (final_rewards.mean()))
 
     if update_i % SAVE_INTERVAL == 0:
         save_model = policy
