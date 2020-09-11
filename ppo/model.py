@@ -97,7 +97,7 @@ class Model(nn.Module):
 class Policy(nn.Module):
     def __init__(self, obs_shape, action_space):
         super().__init__()
-        self.actor_critic = Model(input_size=1)
+        self.actor_critic = Model(input_size=obs_shape[0])
         num_outputs = action_space
 
         # How we will define our normal distribution to sample action from

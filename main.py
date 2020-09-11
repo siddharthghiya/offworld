@@ -4,7 +4,7 @@ __version__     = version.__version__
 
 import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+# os.environ['CUDA_VISIBLE_DEVICES']='0'
 import sys, pdb, time, glob
 import numpy as np
 from datetime import datetime
@@ -27,6 +27,14 @@ from ppo.multiprocessing_env import SubprocVecEnv, VecNormalize
 from tensorboardX import SummaryWriter
 import shutil
 import copy
+import argparse
+
+parser = argparse.ArgumentParser(description='RL')
+parser.add_argument('--load-dir', default=None, help='path to the weights that you want to pre load')
+parser.add_argument('--environment-name', default='OffWorldDockerMonolithDiscreteSim-v0', help='name of the environment')
+parser.add_argument('--experiment-name', default='tmp', help='directory to save models (default: tmp)')
+parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observation')
+args = parser.parse_args()
 
 # Standard definition of epsilon
 EPS = 1e-5
@@ -55,9 +63,11 @@ GAMMA = 0.99
 N_ENVS = 8
 # Environment we are going to use. Make sure it is a continuous action space task.
 ENV_NAME = 'OffWorldDockerMonolithDiscreteSim-v0'
-SAVE_INTERVAL = 100
+SAVE_INTERVAL = 10
 LOG_INTERVAL = 1
-MODEL_DIR = 'weights'
+MODEL_DIR = 'weights/' + args.experiment_name
+LOG_DIR = 'runs/'+ args.experiment_name
+CHANNEL_TYPE = args.channel_type
 
 # Create our model output path if it does not exist.
 if not os.path.exists(MODEL_DIR):
@@ -67,7 +77,10 @@ else:
     os.makedirs(MODEL_DIR)
 
 def make_env():
-    return gym.make(ENV_NAME, channel_type=Channels.DEPTH_ONLY)
+    if CHANNEL_TYPE == 'RGB_ONLY':
+        return gym.make(ENV_NAME, channel_type=Channels.RGB_ONLY)
+    else:
+        return gym.make(ENV_NAME, channel_type=Channels.DEPTH_ONLY)
     # return gym.make(ENV_NAME)
 
 def update_current_obs(obs):
@@ -115,10 +128,17 @@ def update_params(rollouts, policy, optimizer):
 
     return np.mean(value_losses), np.mean(action_losses), np.mean(entropy_losses), np.mean(losses)
 
-# Create logging directory
-if os.path.exists('runs'):
-    shutil.rmtree('runs')
-writer = SummaryWriter()
+# # Create logging directory
+# if os.path.exists(LOG_DIR):
+#     shutil.rmtree(LOG_DIR)
+
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+else:
+    shutil.rmtree(LOG_DIR)
+    os.makedirs(LOG_DIR)
+
+writer = SummaryWriter(logdir=LOG_DIR)
 
 # Parallelize environments
 envs = [make_env for i in range(N_ENVS)]
