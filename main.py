@@ -48,7 +48,7 @@ N_STEPS = 100
 # Total number of frames to train on
 N_FRAMES = 10e6
 # Should we use GPU?
-CUDA = False
+CUDA = True
 # Discounted reward factor
 GAMMA = 0.99
 # Number of environments to run in paralell this is like the batch size

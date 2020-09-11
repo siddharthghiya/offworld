@@ -122,7 +122,6 @@ class Policy(nn.Module):
             action = dist.mode()
         else:
             action = dist.sample()
-
         action_log_probs = dist.log_probs(action).view(-1, 1)
         # dist_entropy = dist.entropy().sum(-1).mean()
 
@@ -140,5 +139,3 @@ class Policy(nn.Module):
         dist_entropy = dist.entropy().mean()
 
         return value, action_log_probs, dist_entropy
-
-
