@@ -1,0 +1,3 @@
+[submodule "offworld-gym"]
+	path = offworld-gym
+	url = git@github.com:offworld-projects/offworld-gym.git
