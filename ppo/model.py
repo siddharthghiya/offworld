@@ -3,6 +3,40 @@ import torch.nn.functional as F
 import torch
 import pdb
 
+"""
+Modify standard PyTorch distributions so they are compatible with this code.
+"""
+
+FixedCategorical = torch.distributions.Categorical
+
+old_sample = FixedCategorical.sample
+FixedCategorical.sample = lambda self: old_sample(self).unsqueeze(-1)
+
+log_prob_cat = FixedCategorical.log_prob
+FixedCategorical.log_probs = lambda self, actions: log_prob_cat(self, actions.squeeze(-1)).unsqueeze(-1)
+
+FixedCategorical.mode = lambda self: self.probs.argmax(dim=1, keepdim=True)
+
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    bias_init(module.bias.data)
+    return module
+
+class Categorical(nn.Module):
+    def __init__(self, num_inputs, num_outputs):
+        super(Categorical, self).__init__()
+
+        init_ = lambda m: init(m,
+              nn.init.orthogonal_,
+              lambda x: nn.init.constant_(x, 0),
+              gain=0.01)
+
+        self.linear = init_(nn.Linear(num_inputs, num_outputs))
+
+    def forward(self, x):
+        x = self.linear(x)
+        return FixedCategorical(logits=x)
+
 # Init layer to have the proper weight initializations.
 def init_layer(m):
     weight = m.weight.data
@@ -10,33 +44,6 @@ def init_layer(m):
     weight *= 1.0 / torch.sqrt(weight.pow(2).sum(1, keepdim=True))
     nn.init.constant_(m.bias.data, 0)
     return m
-
-
-# Standard feed forward network for actor and critic with tanh activations
-class Mlp(nn.Module):
-    def __init__(self, num_inputs):
-        super().__init__()
-
-        # We do not want to select action yet as that will be probablistic.
-        self.actor_hidden = nn.Sequential(
-                init_layer(nn.Linear(num_inputs, 64)),
-                nn.Tanh(),
-                init_layer(nn.Linear(64, 64)),
-                nn.Tanh(),
-            )
-
-        self.critic = nn.Sequential(
-                init_layer(nn.Linear(num_inputs, 64)),
-                nn.Tanh(),
-                init_layer(nn.Linear(64, 64)),
-                nn.Tanh(),
-                init_layer(nn.Linear(64, 1)),
-            )
-
-        self.train()
-
-    def forward(self, inputs):
-        return self.actor_hidden(inputs), self.critic(inputs)
 
 #network
 class BasicBlock(nn.Module):
@@ -94,27 +101,30 @@ class Policy(nn.Module):
         num_outputs = action_space
 
         # How we will define our normal distribution to sample action from
-        self.action_mean = init_layer(nn.Linear(64, num_outputs))
-        self.action_log_std = nn.Parameter(torch.zeros(1, num_outputs))
+        # self.action_mean = init_layer(nn.Linear(64, num_outputs))
+        # self.action_log_std = nn.Parameter(torch.zeros(1, num_outputs))
 
-    def __get_dist(self, actor_features):
-        action_mean = self.action_mean(actor_features)
-        action_log_std = self.action_log_std.expand_as(action_mean)
+        #Categorical distribution for discrete action spcae.
+        self.dist = Categorical(64, num_outputs)
 
-        return torch.distributions.Normal(action_mean, action_log_std.exp())
+    # def __get_dist(self, actor_features):
+    #     action_mean = self.action_mean(actor_features)
+    #     action_log_std = self.action_log_std.expand_as(action_mean)
+
+    #     return torch.distributions.Normal(action_mean, action_log_std.exp())
 
 
     def act(self, inputs, deterministic=False):
         actor_features, value = self.actor_critic(inputs)
-        dist = self.__get_dist(actor_features)
+        dist = self.dist(actor_features)
 
         if deterministic:
-            action = dist.mean
+            action = dist.mode()
         else:
             action = dist.sample()
 
-        action_log_probs = dist.log_prob(action).sum(-1, keepdim=True)
-        dist_entropy = dist.entropy().sum(-1).mean()
+        action_log_probs = dist.log_probs(action).view(-1, 1)
+        # dist_entropy = dist.entropy().sum(-1).mean()
 
         return value, action, action_log_probs
 
@@ -124,10 +134,10 @@ class Policy(nn.Module):
 
     def evaluate_actions(self, inputs, action):
         actor_features, value = self.actor_critic(inputs)
-        dist = self.__get_dist(actor_features)
+        dist = self.dist(actor_features)
 
-        action_log_probs = dist.log_prob(action).sum(-1, keepdim=True)
-        dist_entropy = dist.entropy().sum(-1).mean()
+        action_log_probs = dist.log_probs(action)
+        dist_entropy = dist.entropy().mean()
 
         return value, action_log_probs, dist_entropy
 

@@ -44,7 +44,7 @@ LR = 7e-4
 # Clip gradient norm
 MAX_GRAD_NORM = 0.5
 # Number of steps to generate actions
-N_STEPS = 5
+N_STEPS = 100
 # Total number of frames to train on
 N_FRAMES = 10e6
 # Should we use GPU?
@@ -147,6 +147,9 @@ if CUDA:
     rollouts.cuda()
     current_obs.cuda()
 
+episode_rewards = torch.zeros([N_ENVS, 1])
+final_rewards = torch.zeros([N_ENVS, 1])
+
 n_updates = int(N_FRAMES // N_STEPS // N_ENVS)
 for update_i in tqdm(range(n_updates)):
     # Generate samples
@@ -166,19 +169,20 @@ for update_i in tqdm(range(n_updates)):
 
         # convert to pytorch tensor
         reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
-        masks = torch.FloatTensor([[0.0] if d else [1.0] for d in done])
+        reward_masks = torch.FloatTensor([[0.0] if d else [1.0] for d in done])
+        masks = torch.FloatTensor([np.zeros([*obs_shape]) if d else np.ones([*obs_shape]) for d in done])
 
         # update reward info for logging
         episode_rewards += reward
-        final_rewards *= masks
-        final_rewards += (1 - masks) * episode_rewards
-        episode_rewards *= masks
+        final_rewards *= reward_masks
+        final_rewards += (1 - reward_masks) * episode_rewards
+        episode_rewards *= reward_masks
 
         # Update our current observation tensor
         current_obs *= masks
         update_current_obs(obs)
 
-        rollouts.insert(current_obs, action, action_log_prob, value, reward, masks)
+        rollouts.insert(current_obs, action, action_log_prob, value, reward, reward_masks)
 
     with torch.no_grad():
         next_value = policy.get_value(rollouts.observations[-1]).detach()
