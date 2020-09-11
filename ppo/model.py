@@ -105,8 +105,7 @@ class Policy(nn.Module):
 
 
     def act(self, inputs, deterministic=False):
-        trial = self.actor_critic(inputs)
-        # actor_features, value = self.actor_critic(inputs)
+        actor_features, value = self.actor_critic(inputs)
         dist = self.__get_dist(actor_features)
 
         if deterministic:
