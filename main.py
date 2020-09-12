@@ -88,8 +88,6 @@ def make_env():
         else:
             return gym.make('OffWorldDockerMonolithDiscreteSim-v0', channel_type=Channels.DEPTH_ONLY)
 
-    # return gym.make(ENV_NAME)
-
 def update_current_obs(obs):
     # we want to use the same tensor every time so just copy it over.
     obs = torch.from_numpy(obs).float()
@@ -157,7 +155,6 @@ envs = SubprocVecEnv(envs)
 envs = VecNormalize(envs, gamma=GAMMA, ob=False, ret=False)
 obs_shape = envs.observation_space.shape[1:]
 obs_shape = (obs_shape[-1], obs_shape[0], obs_shape[1])
-# Print observation space so we know what we are dealing with.
 
 #define the policy
 if LOAD_DIR:
