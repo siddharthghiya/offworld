@@ -24,7 +24,7 @@ import numpy as np
 from tqdm import tqdm
 from ppo.memory import RolloutStorage
 from ppo.model import Policy
-from ppo.multiprocessing_env import SubprocVecEnv, VecNormalize
+from ppo.multiprocessing_env import SubprocVecEnv, DummyVecEnv, VecNormalize
 from tensorboardX import SummaryWriter
 import shutil
 import copy
@@ -77,10 +77,10 @@ def make_env():
     if REAL:
         if LOAD_DIR:
             return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=True,
-                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN)
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
         else:
             return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=False,
-                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN)
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
 
     else:
         if CHANNEL_TYPE == 'RGB_ONLY':
@@ -151,7 +151,10 @@ writer = SummaryWriter(logdir=LOG_DIR)
 
 # Parallelize environments
 envs = [make_env for i in range(N_ENVS)]
-envs = SubprocVecEnv(envs)
+if N_ENVS != 1:
+    envs = SubprocVecEnv(envs)
+else:
+    envs = DummyVecEnv(envs)
 envs = VecNormalize(envs, gamma=GAMMA, ob=False, ret=False)
 obs_shape = envs.observation_space.shape[1:]
 obs_shape = (obs_shape[-1], obs_shape[0], obs_shape[1])
