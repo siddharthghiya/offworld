@@ -14,6 +14,7 @@ import pdb
 import gym
 import offworld_gym
 from offworld_gym.envs.common.channels import Channels
+from offworld_gym.envs.common.enums import AlgorithmMode, LearningType
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -30,9 +31,11 @@ import copy
 import argparse
 
 parser = argparse.ArgumentParser(description='RL')
+parser.add_argument('--num-envs', type=int, default=8)
+parser.add_argument('--real', action='store_true', help='training on real environment')
 parser.add_argument('--load-dir', default=None, help='path to the weights that you want to pre load')
-parser.add_argument('--environment-name', default='OffWorldDockerMonolithDiscreteSim-v0', help='name of the environment')
-parser.add_argument('--experiment-name', default='tmp', help='directory to save models (default: tmp)')
+parser.add_argument('--env-name', default='OffWorldDockerMonolithDiscreteSim-v0', help='name of the environment')
+parser.add_argument('--exp-name', default='tmp', help='directory to save models (default: tmp)')
 parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observation')
 args = parser.parse_args()
 
@@ -60,27 +63,31 @@ CUDA = True
 # Discounted reward factor
 GAMMA = 0.99
 # Number of environments to run in paralell this is like the batch size
-N_ENVS = 8
+N_ENVS = args.num_envs
 # Environment we are going to use. Make sure it is a continuous action space task.
-ENV_NAME = 'OffWorldDockerMonolithDiscreteSim-v0'
 SAVE_INTERVAL = 10
 LOG_INTERVAL = 1
-MODEL_DIR = 'weights/' + args.experiment_name
-LOG_DIR = 'runs/'+ args.experiment_name
+MODEL_DIR = 'weights/' + args.exp_name
+LOG_DIR = 'runs/'+ args.exp_name
+LOAD_DIR = args.load_dir
 CHANNEL_TYPE = args.channel_type
-
-# Create our model output path if it does not exist.
-if not os.path.exists(MODEL_DIR):
-    os.makedirs(MODEL_DIR)
-else:
-    shutil.rmtree(MODEL_DIR)
-    os.makedirs(MODEL_DIR)
+REAL = args.real
 
 def make_env():
-    if CHANNEL_TYPE == 'RGB_ONLY':
-        return gym.make(ENV_NAME, channel_type=Channels.RGB_ONLY)
+    if REAL:
+        if LOAD_DIR:
+            return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=True,
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN)
+        else:
+            return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=False,
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN)
+
     else:
-        return gym.make(ENV_NAME, channel_type=Channels.DEPTH_ONLY)
+        if CHANNEL_TYPE == 'RGB_ONLY':
+            return gym.make('OffWorldDockerMonolithDiscreteSim-v0', channel_type=Channels.RGB_ONLY)
+        else:
+            return gym.make('OffWorldDockerMonolithDiscreteSim-v0', channel_type=Channels.DEPTH_ONLY)
+
     # return gym.make(ENV_NAME)
 
 def update_current_obs(obs):
@@ -128,10 +135,14 @@ def update_params(rollouts, policy, optimizer):
 
     return np.mean(value_losses), np.mean(action_losses), np.mean(entropy_losses), np.mean(losses)
 
-# # Create logging directory
-# if os.path.exists(LOG_DIR):
-#     shutil.rmtree(LOG_DIR)
+# Create our model output path if it does not exist.
+if not os.path.exists(MODEL_DIR):
+    os.makedirs(MODEL_DIR)
+else:
+    shutil.rmtree(MODEL_DIR)
+    os.makedirs(MODEL_DIR)
 
+#create a logging directory
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 else:
@@ -149,7 +160,11 @@ obs_shape = (obs_shape[-1], obs_shape[0], obs_shape[1])
 # Print observation space so we know what we are dealing with.
 
 #define the policy
-policy = Policy(obs_shape, envs.action_space.n)
+if LOAD_DIR:
+    policy = torch.load(LOAD_DIR)
+else:
+    policy = Policy(obs_shape, envs.action_space.n)
+
 optimizer = optim.Adam(policy.parameters(), lr=LR, eps=EPS)
 
 current_obs = torch.zeros(N_ENVS, *obs_shape)
