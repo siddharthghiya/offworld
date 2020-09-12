@@ -36,8 +36,9 @@ parser.add_argument('--real', action='store_true', help='training on real enviro
 parser.add_argument('--load-dir', default=None, help='path to the weights that you want to pre load')
 parser.add_argument('--exp-name', default='tmp', help='directory to save models (default: tmp)')
 parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observation')
-parser.add_argument('--save-interval', default=10, help='frequency with which model weights are saved')
-parser.add_argument('--log-interval', default=10, help='frequency with which logs are saved')
+parser.add_argument('--save-interval', default=10, type=int, help='frequency with which model weights are saved')
+parser.add_argument('--log-interval', default=1, type=int, help='frequency with which logs are saved')
+parser.add_argument('--num-steps', default=100, type=int, help='frequency of parameter updates')
 
 args = parser.parse_args()
 
@@ -57,7 +58,7 @@ LR = 7e-4
 # Clip gradient norm
 MAX_GRAD_NORM = 0.5
 # Number of steps to generate actions
-N_STEPS = 100
+N_STEPS = args.num_steps
 # Total number of frames to train on
 N_FRAMES = 1e6
 # Should we use GPU?
