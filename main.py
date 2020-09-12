@@ -36,6 +36,9 @@ parser.add_argument('--real', action='store_true', help='training on real enviro
 parser.add_argument('--load-dir', default=None, help='path to the weights that you want to pre load')
 parser.add_argument('--exp-name', default='tmp', help='directory to save models (default: tmp)')
 parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observation')
+parser.add_argument('--save-interval', default=10, help='frequency with which model weights are saved')
+parser.add_argument('--log-interval', default=10, help='frequency with which logs are saved')
+
 args = parser.parse_args()
 
 # Standard definition of epsilon
@@ -64,8 +67,8 @@ GAMMA = 0.99
 # Number of environments to run in paralell this is like the batch size
 N_ENVS = args.num_envs
 # Environment we are going to use. Make sure it is a continuous action space task.
-SAVE_INTERVAL = 10
-LOG_INTERVAL = 1
+SAVE_INTERVAL = args.save_interval
+LOG_INTERVAL = args.log_interval
 MODEL_DIR = 'weights/' + args.exp_name
 LOG_DIR = 'runs/'+ args.exp_name
 LOAD_DIR = args.load_dir
@@ -74,11 +77,11 @@ REAL = args.real
 
 def make_env():
     if REAL:
-        if LOAD_DIR:
-            return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=True,
-                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
-        else:
+        try:
             return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=False,
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
+        except:
+            return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=True,
                             learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
 
     else:
@@ -194,7 +197,7 @@ for update_i in range(n_updates):
 
         take_actions = action.squeeze(1).cpu().numpy()
 
-        if len(take_actions.shape) == 1:
+        if len(take_actions.shape) == 1 and not REAL:
             take_actions = np.expand_dims(take_actions, axis=-1)
 
         obs, reward, done, info = envs.step(take_actions)
