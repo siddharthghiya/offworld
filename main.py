@@ -39,6 +39,7 @@ parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observ
 parser.add_argument('--save-interval', default=10, type=int, help='frequency with which model weights are saved')
 parser.add_argument('--log-interval', default=1, type=int, help='frequency with which logs are saved')
 parser.add_argument('--num-steps', default=100, type=int, help='frequency of parameter updates')
+parser.add_argument('--update-start', default=0, type=int, help='update from where we want to start again')
 
 args = parser.parse_args()
 
@@ -75,6 +76,7 @@ LOG_DIR = 'runs/'+ args.exp_name
 LOAD_DIR = args.load_dir
 CHANNEL_TYPE = args.channel_type
 REAL = args.real
+UPDATE_START = args.update_start
 
 def make_env():
     if REAL:
@@ -139,9 +141,9 @@ def update_params(rollouts, policy, optimizer):
 # Create our model output path if it does not exist.
 if not os.path.exists(MODEL_DIR):
     os.makedirs(MODEL_DIR)
-else:
-    shutil.rmtree(MODEL_DIR)
-    os.makedirs(MODEL_DIR)
+# else:
+#     shutil.rmtree(MODEL_DIR)
+#     os.makedirs(MODEL_DIR)
 
 #create a logging directory
 if not os.path.exists(LOG_DIR):
@@ -189,7 +191,7 @@ episode_rewards = torch.zeros([N_ENVS, 1])
 final_rewards = torch.zeros([N_ENVS, 1])
 
 n_updates = int(N_FRAMES // N_STEPS // N_ENVS)
-for update_i in range(n_updates):
+for update_i in range(UPDATE_START, n_updates):
     # Generate samples
     for step in range(N_STEPS):
         # Generate and take an action
