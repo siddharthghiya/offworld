@@ -7,12 +7,45 @@ import types
 from ppo.multiprocessing_env import DummyVecEnv, VecNormalize
 import pdb
 
-ENV_NAME = 'OffWorldDockerMonolithDiscreteSim-v0'
-load_path = 'weights/model_0.pt'
-policy = torch.load(load_path)
+parser = argparse.ArgumentParser(description='RL')
+parser.add_argument('--num-envs', type=int, default=8)
+parser.add_argument('--real', action='store_true', help='training on real environment')
+parser.add_argument('--load-dir', default=None, help='path to the weights that you want to pre load')
+parser.add_argument('--exp-name', default='tmp', help='directory to save models (default: tmp)')
+parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observation')
+parser.add_argument('--save-interval', default=10, type=int, help='frequency with which model weights are saved')
+parser.add_argument('--log-interval', default=1, type=int, help='frequency with which logs are saved')
+parser.add_argument('--num-steps', default=100, type=int, help='frequency of parameter updates')
+parser.add_argument('--update-start', default=0, type=int, help='update from where we want to start again')
+
+args = parser.parse_args()
+
+REAL = args.real
+CHANNEL_TYPE = args.channel_type
+LOAD_DIR = args.load_dir
 
 def make_env():
-    return gym.make(ENV_NAME)
+    if REAL:
+        try:
+            return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=False,
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
+        except:
+            return gym.make('OffWorldMonolithDiscreteReal-v0', channel_type=Channels.DEPTH_ONLY, resume_experiment=True,
+                            learning_type=LearningType.END_TO_END, algorithm_mode=AlgorithmMode.TRAIN, experiment_name='real_ppo')
+
+    else:
+        if CHANNEL_TYPE == 'RGB_ONLY':
+            return gym.make('OffWorldDockerMonolithDiscreteSim-v0', channel_type=Channels.RGB_ONLY)
+        else:
+            return gym.make('OffWorldDockerMonolithDiscreteSim-v0', channel_type=Channels.DEPTH_ONLY)
+
+def update_current_obs(obs):
+    obs = obs.reshape(1, obs.shape[-3], obs.shape[-2], obs.shape[-1])
+    obs = np.transpose(obs, (0, 3, 1, 2))
+    obs = torch.from_numpy(obs).float()
+    current_obs[:, :] = obs
+
+policy = torch.load(LOAD_DIR)
 env = make_env
 
 env = DummyVecEnv([env])
@@ -20,12 +53,6 @@ obs_shape = env.observation_space.shape
 obs_shape = env.observation_space.shape[1:]
 obs_shape = (obs_shape[-1], obs_shape[0], obs_shape[1])
 current_obs = torch.zeros(1, *obs_shape)
-def update_current_obs(obs):
-    obs = obs.reshape(1, obs.shape[-3], obs.shape[-2], obs.shape[-1])
-    obs = np.transpose(obs, (0, 3, 1, 2))
-    obs = torch.from_numpy(obs).float()
-    current_obs[:, :] = obs
-
 
 for i in range(10):
     obs = env.reset()
