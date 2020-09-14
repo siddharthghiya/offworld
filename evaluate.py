@@ -5,24 +5,21 @@ from offworld_gym.envs.common.channels import Channels
 import numpy as np
 import types
 from ppo.multiprocessing_env import DummyVecEnv, VecNormalize
+import argparse
 import pdb
 
 parser = argparse.ArgumentParser(description='RL')
-parser.add_argument('--num-envs', type=int, default=8)
 parser.add_argument('--real', action='store_true', help='training on real environment')
 parser.add_argument('--load-dir', default=None, help='path to the weights that you want to pre load')
-parser.add_argument('--exp-name', default='tmp', help='directory to save models (default: tmp)')
 parser.add_argument('--channel-type', default='DEPTH_ONLY', help='type of observation')
-parser.add_argument('--save-interval', default=10, type=int, help='frequency with which model weights are saved')
-parser.add_argument('--log-interval', default=1, type=int, help='frequency with which logs are saved')
-parser.add_argument('--num-steps', default=100, type=int, help='frequency of parameter updates')
-parser.add_argument('--update-start', default=0, type=int, help='update from where we want to start again')
+parser.add_argument('--num-eval', type=int, default=30, help='number of evaluation episodes')
 
 args = parser.parse_args()
 
 REAL = args.real
 CHANNEL_TYPE = args.channel_type
 LOAD_DIR = args.load_dir
+NUM_EVAL_EPISODES = args.num_eval
 
 def make_env():
     if REAL:
@@ -54,7 +51,10 @@ obs_shape = env.observation_space.shape[1:]
 obs_shape = (obs_shape[-1], obs_shape[0], obs_shape[1])
 current_obs = torch.zeros(1, *obs_shape)
 
-for i in range(10):
+total_steps = 0
+success = 0
+
+for i in range(NUM_EVAL_EPISODES):
     obs = env.reset()
     update_current_obs(obs)
     done = False
@@ -71,6 +71,10 @@ for i in range(10):
         update_current_obs(obs)
         env.render()
         steps += 1
-
+    
+    total_steps += steps
+    success += episode_reward[0]
     print('episode' , i, 'total reward ', episode_reward, 'steps ', steps)
 
+print('average steps per episode: ', total_steps/NUM_EVAL_EPISODES)
+print('percentage of successful episodes: ', success/NUM_EVAL_EPISODES*100)
